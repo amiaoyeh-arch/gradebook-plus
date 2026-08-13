@@ -435,7 +435,7 @@ body {
 
 .scores-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(95px, 1fr));
   gap: 1.2rem;
 }
 
@@ -743,8 +743,8 @@ body {
   font-weight: 300;
 }
 
-/* 總分與平均欄位底色與特別標示 */
-.grades-table td.cell-total, .grades-table td.cell-average {
+/* 平均欄位底色與特別標示 */
+.grades-table td.cell-average {
   font-family: 'Outfit', sans-serif;
   font-weight: 700;
   background-color: rgba(255, 255, 255, 0.02);

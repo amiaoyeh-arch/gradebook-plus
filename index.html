@@ -55,7 +55,7 @@
         <div class="metric-info">
           <h3>班級總平均</h3>
           <p class="metric-value" id="class-avg">-</p>
-          <span class="metric-subtext">滿分 100.0 分</span>
+          <span class="metric-subtext">學期總平均分</span>
         </div>
       </div>
 
@@ -64,7 +64,7 @@
         <div class="metric-info">
           <h3>及格率</h3>
           <p class="metric-value" id="pass-rate">0%</p>
-          <span class="metric-subtext">平均達 60 分以上</span>
+          <span class="metric-subtext">學期平均達 60 分以上</span>
         </div>
       </div>
 
@@ -73,7 +73,7 @@
         <div class="metric-info">
           <h3>優秀學生數</h3>
           <p class="metric-value" id="excel-count">0</p>
-          <span class="metric-subtext">平均達 90 分以上</span>
+          <span class="metric-subtext">學期平均達 90 分以上</span>
         </div>
       </div>
 
@@ -82,7 +82,7 @@
         <div class="metric-info">
           <h3>需輔導學生數</h3>
           <p class="metric-value" id="fail-count">0</p>
-          <span class="metric-subtext">平均未達 60 分</span>
+          <span class="metric-subtext">學期平均未達 60 分</span>
         </div>
       </div>
     </section>
@@ -91,7 +91,7 @@
     <section class="quick-entry-section glass-panel animate-slide-up" style="animation-delay: 0.45s;">
       <div class="section-title-container">
         <h2><i class="fa-solid fa-keyboard"></i> 成績登錄控制台</h2>
-        <span class="badge">成績輸入欄位</span>
+        <span class="badge">平時考 1 ~ 10 輸入</span>
       </div>
       
       <form id="quick-entry-form" class="entry-form-wrapper">
@@ -104,47 +104,51 @@
           </div>
           
           <div class="form-group comment-group">
-            <label for="input-comment">導師評語</label>
+            <label for="input-comment">綜合評語</label>
             <input type="text" id="input-comment" class="form-input" placeholder="請輸入本學期綜合表現評語...">
           </div>
         </div>
         
         <div class="scores-grid">
           <div class="score-input-item">
-            <label for="input-chinese">國文</label>
-            <input type="number" id="input-chinese" min="0" max="100" class="form-input-score" placeholder="未登錄">
+            <label for="input-quiz_1">平時考 1</label>
+            <input type="number" id="input-quiz_1" min="0" max="100" class="form-input-score" placeholder="未登錄">
           </div>
           <div class="score-input-item">
-            <label for="input-english">英文</label>
-            <input type="number" id="input-english" min="0" max="100" class="form-input-score" placeholder="未登錄">
+            <label for="input-quiz_2">平時考 2</label>
+            <input type="number" id="input-quiz_2" min="0" max="100" class="form-input-score" placeholder="未登錄">
           </div>
           <div class="score-input-item">
-            <label for="input-math">數學</label>
-            <input type="number" id="input-math" min="0" max="100" class="form-input-score" placeholder="未登錄">
+            <label for="input-quiz_3">平時考 3</label>
+            <input type="number" id="input-quiz_3" min="0" max="100" class="form-input-score" placeholder="未登錄">
           </div>
           <div class="score-input-item">
-            <label for="input-science">自然</label>
-            <input type="number" id="input-science" min="0" max="100" class="form-input-score" placeholder="未登錄">
+            <label for="input-quiz_4">平時考 4</label>
+            <input type="number" id="input-quiz_4" min="0" max="100" class="form-input-score" placeholder="未登錄">
           </div>
           <div class="score-input-item">
-            <label for="input-social">社會</label>
-            <input type="number" id="input-social" min="0" max="100" class="form-input-score" placeholder="未登錄">
+            <label for="input-quiz_5">平時考 5</label>
+            <input type="number" id="input-quiz_5" min="0" max="100" class="form-input-score" placeholder="未登錄">
           </div>
           <div class="score-input-item">
-            <label for="input-pe">體育</label>
-            <input type="number" id="input-pe" min="0" max="100" class="form-input-score" placeholder="未登錄">
+            <label for="input-quiz_6">平時考 6</label>
+            <input type="number" id="input-quiz_6" min="0" max="100" class="form-input-score" placeholder="未登錄">
           </div>
           <div class="score-input-item">
-            <label for="input-midterm">期中考</label>
-            <input type="number" id="input-midterm" min="0" max="100" class="form-input-score" placeholder="未登錄">
+            <label for="input-quiz_7">平時考 7</label>
+            <input type="number" id="input-quiz_7" min="0" max="100" class="form-input-score" placeholder="未登錄">
           </div>
           <div class="score-input-item">
-            <label for="input-final">期末考</label>
-            <input type="number" id="input-final" min="0" max="100" class="form-input-score" placeholder="未登錄">
+            <label for="input-quiz_8">平時考 8</label>
+            <input type="number" id="input-quiz_8" min="0" max="100" class="form-input-score" placeholder="未登錄">
           </div>
           <div class="score-input-item">
-            <label for="input-daily">平時成績</label>
-            <input type="number" id="input-daily" min="0" max="100" class="form-input-score" placeholder="未登錄">
+            <label for="input-quiz_9">平時考 9</label>
+            <input type="number" id="input-quiz_9" min="0" max="100" class="form-input-score" placeholder="未登錄">
+          </div>
+          <div class="score-input-item">
+            <label for="input-quiz_10">平時考 10</label>
+            <input type="number" id="input-quiz_10" min="0" max="100" class="form-input-score" placeholder="未登錄">
           </div>
         </div>
         
@@ -196,18 +200,18 @@
             <tr>
               <th data-sort="seat_id" class="sortable">座號 <i class="fa-solid fa-sort"></i></th>
               <th data-sort="name">姓名</th>
-              <th data-sort="chinese" class="sortable">國文 <i class="fa-solid fa-sort"></i></th>
-              <th data-sort="english" class="sortable">英文 <i class="fa-solid fa-sort"></i></th>
-              <th data-sort="math" class="sortable">數學 <i class="fa-solid fa-sort"></i></th>
-              <th data-sort="science" class="sortable">自然 <i class="fa-solid fa-sort"></i></th>
-              <th data-sort="social" class="sortable">社會 <i class="fa-solid fa-sort"></i></th>
-              <th data-sort="pe" class="sortable">體育 <i class="fa-solid fa-sort"></i></th>
-              <th data-sort="midterm" class="sortable">期中 <i class="fa-solid fa-sort"></i></th>
-              <th data-sort="final" class="sortable">期末 <i class="fa-solid fa-sort"></i></th>
-              <th data-sort="daily" class="sortable">平時 <i class="fa-solid fa-sort"></i></th>
-              <th data-sort="total" class="sortable">總分 <i class="fa-solid fa-sort"></i></th>
-              <th data-sort="average" class="sortable">平均 <i class="fa-solid fa-sort"></i></th>
-              <th>導師評語</th>
+              <th data-sort="quiz_1" class="sortable">平時考 1 <i class="fa-solid fa-sort"></i></th>
+              <th data-sort="quiz_2" class="sortable">平時考 2 <i class="fa-solid fa-sort"></i></th>
+              <th data-sort="quiz_3" class="sortable">平時考 3 <i class="fa-solid fa-sort"></i></th>
+              <th data-sort="quiz_4" class="sortable">平時考 4 <i class="fa-solid fa-sort"></i></th>
+              <th data-sort="quiz_5" class="sortable">平時考 5 <i class="fa-solid fa-sort"></i></th>
+              <th data-sort="quiz_6" class="sortable">平時考 6 <i class="fa-solid fa-sort"></i></th>
+              <th data-sort="quiz_7" class="sortable">平時考 7 <i class="fa-solid fa-sort"></i></th>
+              <th data-sort="quiz_8" class="sortable">平時考 8 <i class="fa-solid fa-sort"></i></th>
+              <th data-sort="quiz_9" class="sortable">平時考 9 <i class="fa-solid fa-sort"></i></th>
+              <th data-sort="quiz_10" class="sortable">平時考 10 <i class="fa-solid fa-sort"></i></th>
+              <th data-sort="average" class="sortable">學期平均 <i class="fa-solid fa-sort"></i></th>
+              <th>綜合評語</th>
             </tr>
           </thead>
           <tbody id="table-body">
@@ -220,7 +224,7 @@
     <!-- 底部資訊 -->
     <footer class="app-footer animate-fade-in" style="animation-delay: 0.7s;">
       <p>© 2026 GradeBook Plus. Design with <i class="fa-solid fa-heart text-danger"></i> & Glassmorphism Aesthetics.</p>
-      <p class="tech-stack">Vanilla HTML/CSS/JS + Google Sheets API + Netlify CLI</p>
+      <p class="tech-stack">Vanilla HTML/CSS/JS + Google Sheets API + GitHub Pages</p>
     </footer>
   </div>
 
