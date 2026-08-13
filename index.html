@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>雲端班級成績登錄系統 (GradeBook Plus)</title>
+  <!-- 引入 Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <!-- 引入 Font Awesome 圖示 -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- 引入 Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- 本地樣式表 -->
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="stars-bg"></div>
+  <div class="glowing-orb orb-1"></div>
+  <div class="glowing-orb orb-2"></div>
+
+  <div class="app-container">
+    <!-- 頂部導航與標題 -->
+    <header class="main-header glass-panel animate-fade-in">
+      <div class="header-title">
+        <div class="logo-icon"><i class="fa-solid fa-graduation-cap"></i></div>
+        <div>
+          <h1>GradeBook <span>Plus</span></h1>
+          <p class="subtitle"><i class="fa-solid fa-school"></i> 雲端班級成績登錄系統 — 三年二班 (25人)</p>
+        </div>
+      </div>
+      
+      <div class="header-actions">
+        <div class="api-status-badge" id="api-status">
+          <span class="status-dot"></span>
+          <span class="status-text">連線中...</span>
+        </div>
+        <a id="sheet-link" href="#" target="_blank" class="btn btn-secondary sheet-link-btn" style="display: none;">
+          <i class="fa-solid fa-file-excel"></i> 開啟 Google 試算表
+        </a>
+        <button id="reload-btn" class="btn btn-secondary" title="從雲端重新載入資料">
+          <i class="fa-solid fa-arrows-rotate"></i> 重新載入
+        </button>
+        <button id="save-btn" class="btn btn-primary" title="將當前修改儲存至 Google Sheet">
+          <i class="fa-solid fa-cloud-arrow-up"></i> 儲存至雲端
+        </button>
+      </div>
+    </header>
+
+    <!-- 儀表板數據卡 -->
+    <section class="dashboard-metrics">
+      <div class="metric-card glass-panel card-glow-primary animate-slide-up" style="animation-delay: 0.1s;">
+        <div class="metric-icon"><i class="fa-solid fa-chart-line"></i></div>
+        <div class="metric-info">
+          <h3>班級總平均</h3>
+          <p class="metric-value" id="class-avg">-</p>
+          <span class="metric-subtext">滿分 100.0 分</span>
+        </div>
+      </div>
+
+      <div class="metric-card glass-panel card-glow-success animate-slide-up" style="animation-delay: 0.2s;">
+        <div class="metric-icon"><i class="fa-solid fa-circle-check"></i></div>
+        <div class="metric-info">
+          <h3>及格率</h3>
+          <p class="metric-value" id="pass-rate">0%</p>
+          <span class="metric-subtext">平均達 60 分以上</span>
+        </div>
+      </div>
+
+      <div class="metric-card glass-panel card-glow-warning animate-slide-up" style="animation-delay: 0.3s;">
+        <div class="metric-icon"><i class="fa-solid fa-award"></i></div>
+        <div class="metric-info">
+          <h3>優秀學生數</h3>
+          <p class="metric-value" id="excel-count">0</p>
+          <span class="metric-subtext">平均達 90 分以上</span>
+        </div>
+      </div>
+
+      <div class="metric-card glass-panel card-glow-danger animate-slide-up" style="animation-delay: 0.4s;">
+        <div class="metric-icon"><i class="fa-solid fa-triangle-exclamation"></i></div>
+        <div class="metric-info">
+          <h3>需輔導學生數</h3>
+          <p class="metric-value" id="fail-count">0</p>
+          <span class="metric-subtext">平均未達 60 分</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- 成績快速登錄控制台 -->
+    <section class="quick-entry-section glass-panel animate-slide-up" style="animation-delay: 0.45s;">
+      <div class="section-title-container">
+        <h2><i class="fa-solid fa-keyboard"></i> 成績登錄控制台</h2>
+        <span class="badge">成績輸入欄位</span>
+      </div>
+      
+      <form id="quick-entry-form" class="entry-form-wrapper">
+        <div class="form-row main-row">
+          <div class="form-group select-group">
+            <label for="student-select">選擇學生 (座號/姓名)</label>
+            <select id="student-select" class="form-select">
+              <!-- 由 JS 動態插入 25 位學生 -->
+            </select>
+          </div>
+          
+          <div class="form-group comment-group">
+            <label for="input-comment">導師評語</label>
+            <input type="text" id="input-comment" class="form-input" placeholder="請輸入本學期綜合表現評語...">
+          </div>
+        </div>
+        
+        <div class="scores-grid">
+          <div class="score-input-item">
+            <label for="input-chinese">國文</label>
+            <input type="number" id="input-chinese" min="0" max="100" class="form-input-score" placeholder="未登錄">
+          </div>
+          <div class="score-input-item">
+            <label for="input-english">英文</label>
+            <input type="number" id="input-english" min="0" max="100" class="form-input-score" placeholder="未登錄">
+          </div>
+          <div class="score-input-item">
+            <label for="input-math">數學</label>
+            <input type="number" id="input-math" min="0" max="100" class="form-input-score" placeholder="未登錄">
+          </div>
+          <div class="score-input-item">
+            <label for="input-science">自然</label>
+            <input type="number" id="input-science" min="0" max="100" class="form-input-score" placeholder="未登錄">
+          </div>
+          <div class="score-input-item">
+            <label for="input-social">社會</label>
+            <input type="number" id="input-social" min="0" max="100" class="form-input-score" placeholder="未登錄">
+          </div>
+          <div class="score-input-item">
+            <label for="input-pe">體育</label>
+            <input type="number" id="input-pe" min="0" max="100" class="form-input-score" placeholder="未登錄">
+          </div>
+          <div class="score-input-item">
+            <label for="input-midterm">期中考</label>
+            <input type="number" id="input-midterm" min="0" max="100" class="form-input-score" placeholder="未登錄">
+          </div>
+          <div class="score-input-item">
+            <label for="input-final">期末考</label>
+            <input type="number" id="input-final" min="0" max="100" class="form-input-score" placeholder="未登錄">
+          </div>
+          <div class="score-input-item">
+            <label for="input-daily">平時成績</label>
+            <input type="number" id="input-daily" min="0" max="100" class="form-input-score" placeholder="未登錄">
+          </div>
+        </div>
+        
+        <div class="form-actions">
+          <button type="button" id="clear-entry-btn" class="btn btn-secondary">
+            <i class="fa-solid fa-eraser"></i> 清空輸入
+          </button>
+          <button type="submit" class="btn btn-primary btn-submit">
+            <i class="fa-solid fa-check"></i> 確認登錄成績 (Enter)
+          </button>
+        </div>
+      </form>
+    </section>
+
+    <!-- 圖表分析區 -->
+    <section class="charts-section glass-panel animate-fade-in" style="animation-delay: 0.5s;">
+      <div class="section-title-container">
+        <h2><i class="fa-solid fa-chart-pie"></i> 成績統計與圖表分析</h2>
+        <span class="badge">即時更新</span>
+      </div>
+      <div class="charts-wrapper">
+        <div class="chart-container">
+          <canvas id="subjectAvgChart"></canvas>
+        </div>
+        <div class="chart-container">
+          <canvas id="scoreDistChart"></canvas>
+        </div>
+      </div>
+    </section>
+
+    <!-- 成績表格與管理區 -->
+    <section class="table-section glass-panel animate-fade-in" style="animation-delay: 0.6s;">
+      <div class="table-header">
+        <div class="table-title">
+          <h2><i class="fa-solid fa-list-check"></i> 學生成績登錄表</h2>
+          <span class="table-instruction"><i class="fa-regular fa-lightbulb"></i> 提示：可使用上方登錄面板輸入，亦可直接雙擊儲存格編輯</span>
+        </div>
+        
+        <div class="table-search">
+          <i class="fa-solid fa-magnifying-glass search-icon"></i>
+          <input type="text" id="search-input" placeholder="搜尋座號或姓名...">
+        </div>
+      </div>
+
+      <!-- 成績表格容器 -->
+      <div class="table-responsive">
+        <table class="grades-table" id="grades-table">
+          <thead>
+            <tr>
+              <th data-sort="seat_id" class="sortable">座號 <i class="fa-solid fa-sort"></i></th>
+              <th data-sort="name">姓名</th>
+              <th data-sort="chinese" class="sortable">國文 <i class="fa-solid fa-sort"></i></th>
+              <th data-sort="english" class="sortable">英文 <i class="fa-solid fa-sort"></i></th>
+              <th data-sort="math" class="sortable">數學 <i class="fa-solid fa-sort"></i></th>
+              <th data-sort="science" class="sortable">自然 <i class="fa-solid fa-sort"></i></th>
+              <th data-sort="social" class="sortable">社會 <i class="fa-solid fa-sort"></i></th>
+              <th data-sort="pe" class="sortable">體育 <i class="fa-solid fa-sort"></i></th>
+              <th data-sort="midterm" class="sortable">期中 <i class="fa-solid fa-sort"></i></th>
+              <th data-sort="final" class="sortable">期末 <i class="fa-solid fa-sort"></i></th>
+              <th data-sort="daily" class="sortable">平時 <i class="fa-solid fa-sort"></i></th>
+              <th data-sort="total" class="sortable">總分 <i class="fa-solid fa-sort"></i></th>
+              <th data-sort="average" class="sortable">平均 <i class="fa-solid fa-sort"></i></th>
+              <th>導師評語</th>
+            </tr>
+          </thead>
+          <tbody id="table-body">
+            <!-- JS 動態插入學生成績 -->
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- 底部資訊 -->
+    <footer class="app-footer animate-fade-in" style="animation-delay: 0.7s;">
+      <p>© 2026 GradeBook Plus. Design with <i class="fa-solid fa-heart text-danger"></i> & Glassmorphism Aesthetics.</p>
+      <p class="tech-stack">Vanilla HTML/CSS/JS + Google Sheets API + Netlify CLI</p>
+    </footer>
+  </div>
+
+  <!-- 全螢幕 Loading 遮罩 -->
+  <div id="loading-overlay" class="loading-overlay">
+    <div class="spinner-container">
+      <div class="cyber-spinner"></div>
+      <p class="loading-text" id="loading-text">正在讀取雲端成績...</p>
+    </div>
+  </div>
+
+  <!-- Toast 通知容器 -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <!-- 引入前端核心 JS -->
+  <script src="app.js"></script>
+</body>
+</html>

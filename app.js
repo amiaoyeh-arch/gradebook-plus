@@ -1,0 +1,876 @@
+/**
+ * GradeBook Plus - 前端核心邏輯
+ * 整合資料庫同步、Inline-Edit、成績登錄控制台、即時統計與 Chart.js 圖表分析
+ */
+
+// 後端 Google Apps Script Web App 部署網址
+const GAS_API_URL = "https://script.google.com/macros/s/AKfycbzQ0UTr3W59FuffqdWIc2DcJgUsVDm8i4NT2UQW8ZazUj0Q3IMXMIh_FJNaEu5ENfS2/exec";
+
+// 25 位學生的固定基本名單
+const STUDENT_NAMES = [
+  "林宇軒", "陳雅婷", "張家豪", "李怡君", "王志明", "黃雅雯", "劉傑森", "蔡美玲", "吳俊宏", "賴淑芬",
+  "謝冠宇", "周欣怡", "徐子晴", "曾聖凱", "詹凱婷", "梁品睿", "潘廷軒", "郭佳穎", "曹承翰", "許家瑜",
+  "楊舒雅", "鄧宇翔", "彭若瑄", "蕭哲宇", "葉庭妤"
+];
+
+// 全域變數
+let studentGrades = [];
+let currentSortField = "seat_id";
+let currentSortOrder = "asc"; // "asc" | "desc"
+let subjectAvgChart = null;
+let scoreDistChart = null;
+
+// 初始化應用程式
+document.addEventListener("DOMContentLoaded", () => {
+  initApp();
+});
+
+async function initApp() {
+  showLoading("正在偵測伺服器連線狀態...");
+  
+  // 1. 初始化學生成績登錄控制台下拉選單 (25位)
+  initStudentSelect();
+  
+  // 2. 綁定控制按鈕
+  document.getElementById("reload-btn").addEventListener("click", () => loadDataFromServer(true));
+  document.getElementById("save-btn").addEventListener("click", saveDataToServer);
+  document.getElementById("search-input").addEventListener("input", filterTable);
+  
+  // 3. 綁定控制台表單事件
+  document.getElementById("quick-entry-form").addEventListener("submit", handleQuickEntrySubmit);
+  document.getElementById("clear-entry-btn").addEventListener("click", clearQuickEntryForm);
+  document.getElementById("student-select").addEventListener("change", handleStudentSelectChange);
+  
+  // 4. 綁定表頭排序
+  const headers = document.querySelectorAll(".grades-table th.sortable");
+  headers.forEach(header => {
+    header.addEventListener("click", () => {
+      const field = header.getAttribute("data-sort");
+      handleSort(field);
+    });
+  });
+
+  // 嘗試載入資料
+  await loadDataFromServer(false);
+  hideLoading();
+}
+
+/**
+ * 初始化登錄控制台的學生下拉選單
+ */
+function initStudentSelect() {
+  const select = document.getElementById("student-select");
+  select.innerHTML = "";
+  
+  for (let i = 1; i <= 25; i++) {
+    const opt = document.createElement("option");
+    opt.value = i;
+    opt.textContent = `座號 ${String(i).padStart(2, '0')} - ${STUDENT_NAMES[i - 1]}`;
+    select.appendChild(opt);
+  }
+}
+
+/**
+ * 載入資料：優先向 Google Sheets 讀取，失敗則使用本地假資料 (空白)
+ */
+async function loadDataFromServer(isManualReload = false) {
+  if (isManualReload) {
+    showLoading("正在從 Google Sheets 重新同步...");
+  }
+  
+  const statusBadge = document.getElementById("api-status");
+  const sheetLink = document.getElementById("sheet-link");
+  
+  try {
+    if (!GAS_API_URL || GAS_API_URL.includes("YOUR_GAS_API_URL_HERE")) {
+      throw new Error("API 網址未設定，改用本地端離線演示。");
+    }
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
+
+    const response = await fetch(`${GAS_API_URL}?action=getGrades`, {
+      method: "GET",
+      signal: controller.signal
+    });
+    
+    clearTimeout(timeoutId);
+    
+    if (!response.ok) {
+      throw new Error(`伺服器回應錯誤: ${response.status}`);
+    }
+    
+    const result = await response.json();
+    if (result.status === "success" && Array.isArray(result.data) && result.data.length === 25) {
+      studentGrades = result.data;
+      
+      // 更新狀態標誌為雲端連線
+      statusBadge.className = "api-status-badge online";
+      statusBadge.querySelector(".status-text").textContent = "雲端同步中";
+      
+      // 顯示並綁定新建的試算表網址
+      if (result.spreadsheetUrl) {
+        sheetLink.href = result.spreadsheetUrl;
+        sheetLink.style.display = "inline-flex";
+      }
+      
+      if (isManualReload) {
+        showToast("同步成功", "已從雲端試算表取得最新成績數據。", "success");
+      }
+    } else {
+      throw new Error("伺服器資料異常或未初始化");
+    }
+  } catch (error) {
+    console.warn("後端連線失敗，已自動啟用本地離線空白資料。", error);
+    
+    // 設定狀態標誌為本地離線模式
+    statusBadge.className = "api-status-badge local";
+    statusBadge.querySelector(".status-text").textContent = "本地演示模式";
+    sheetLink.style.display = "none";
+    
+    if (studentGrades.length !== 25) {
+      generateLocalBlankGrades();
+    }
+    
+    if (isManualReload) {
+      showToast("本地資料重置", "後端連線失敗，已重置本地空白成績。", "warning");
+    }
+  } finally {
+    if (isManualReload) {
+      hideLoading();
+    }
+    
+    // 更新介面與圖表
+    refreshUI();
+    
+    // 將當前選定學生的成績載入登錄控制台
+    loadActiveStudentToForm();
+  }
+}
+
+/**
+ * 產生 25 位學生的本地空白成績
+ */
+function generateLocalBlankGrades() {
+  studentGrades = [];
+  for (let i = 1; i <= 25; i++) {
+    studentGrades.push({
+      seat_id: i,
+      name: STUDENT_NAMES[i - 1],
+      chinese: "",
+      english: "",
+      math: "",
+      science: "",
+      social: "",
+      pe: "",
+      midterm: "",
+      final: "",
+      daily: "",
+      total: "",
+      average: "",
+      comment: ""
+    });
+  }
+}
+
+/**
+ * 計算統計數據並更新指標卡與圖表
+ */
+function refreshUI() {
+  // 1. 重新計算所有總分與平均
+  recalculateGrades();
+  
+  // 2. 計算班級統計
+  let sumAverage = 0;
+  let gradedCount = 0; // 已輸入成績的人數
+  let passCount = 0;
+  let excelCount = 0;
+  let failCount = 0;
+  
+  studentGrades.forEach(student => {
+    if (student.average !== "" && student.average !== null && student.average !== undefined) {
+      const avg = Number(student.average);
+      sumAverage += avg;
+      gradedCount++;
+      
+      if (avg >= 60) {
+        passCount++;
+      } else {
+        failCount++;
+      }
+      
+      if (avg >= 90) {
+        excelCount++;
+      }
+    }
+  });
+  
+  // 3. 更新 Metrics DOM
+  if (gradedCount > 0) {
+    const classAvg = Math.round((sumAverage / gradedCount) * 10) / 10;
+    const passRate = Math.round((passCount / gradedCount) * 100);
+    
+    document.getElementById("class-avg").textContent = classAvg.toFixed(1);
+    document.getElementById("pass-rate").textContent = `${passRate}%`;
+    document.getElementById("excel-count").textContent = excelCount;
+    document.getElementById("fail-count").textContent = failCount;
+  } else {
+    // 全空白狀態
+    document.getElementById("class-avg").textContent = "-";
+    document.getElementById("pass-rate").textContent = "0%";
+    document.getElementById("excel-count").textContent = "0";
+    document.getElementById("fail-count").textContent = "0";
+  }
+  
+  // 4. 排序並重新渲染表格
+  sortGrades();
+  renderTable();
+  
+  // 5. 重新繪製 Chart.js
+  updateCharts();
+}
+
+/**
+ * 遍歷學生成績，依據當前學科重新計算總分及平均
+ */
+function recalculateGrades() {
+  studentGrades.forEach(student => {
+    const isBlank = (v) => v === "" || v === null || v === undefined;
+    
+    const chinese = student.chinese;
+    const english = student.english;
+    const math = student.math;
+    const science = student.science;
+    const social = student.social;
+    const pe = student.pe;
+    const midterm = student.midterm;
+    const final = student.final;
+    const daily = student.daily;
+    
+    const hasScore = [chinese, english, math, science, social, pe, midterm, final, daily].some(v => !isBlank(v));
+    
+    if (hasScore) {
+      const getNum = (v) => isBlank(v) ? 0 : Number(v);
+      const total = getNum(chinese) + getNum(english) + getNum(math) + getNum(science) + getNum(social) + getNum(pe) + getNum(midterm) + getNum(final) + getNum(daily);
+      student.total = total;
+      student.average = Math.round((total / 9) * 10) / 10;
+    } else {
+      student.total = "";
+      student.average = "";
+    }
+  });
+}
+
+/**
+ * 渲染成績表格
+ */
+function renderTable() {
+  const tbody = document.getElementById("table-body");
+  tbody.innerHTML = "";
+  
+  studentGrades.forEach(student => {
+    const tr = document.createElement("tr");
+    tr.setAttribute("data-seat", student.seat_id);
+    
+    // 點擊此行，將該名學生載入成績登錄控制面板中
+    tr.addEventListener("click", (e) => {
+      // 避免與雙擊 Inline Edit 輸入框衝突
+      if (e.target.tagName === "INPUT") return;
+      
+      const select = document.getElementById("student-select");
+      select.value = student.seat_id;
+      loadActiveStudentToForm();
+      
+      // 高亮當前點擊的行
+      document.querySelectorAll("#table-body tr").forEach(r => r.style.backgroundColor = "");
+      tr.style.backgroundColor = "rgba(0, 204, 255, 0.08)";
+    });
+    
+    // 定義欄位與對應樣式邏輯的 Helper
+    const createCell = (field, isEditable = true, isNumeric = true) => {
+      const td = document.createElement("td");
+      const value = student[field];
+      td.setAttribute("data-field", field);
+      
+      const isBlankVal = value === "" || value === null || value === undefined;
+      
+      if (isBlankVal) {
+        td.textContent = (field === "total" || field === "average") ? "-" : "";
+        if (field !== "comment") {
+          td.classList.add("score-empty");
+        }
+      } else {
+        td.textContent = value;
+      }
+      
+      if (isEditable) {
+        td.classList.add("editable");
+        
+        // 針對分數加上高亮 class
+        if (isNumeric && !isBlankVal) {
+          const numVal = Number(value);
+          if (numVal < 60) {
+            td.className = "editable score-fail";
+          } else if (numVal >= 90) {
+            td.className = "editable score-excellent";
+          } else {
+            td.className = "editable score-pass";
+          }
+        }
+      } else {
+        if (field === "total") td.className = "cell-total";
+        if (field === "average") {
+          td.className = "cell-average";
+          if (!isBlankVal) {
+            const avgVal = Number(value);
+            if (avgVal < 60) td.classList.add("score-fail");
+            else if (avgVal >= 90) td.classList.add("score-excellent");
+          }
+        }
+      }
+      
+      // 雙擊編輯事件
+      if (isEditable) {
+        td.addEventListener("dblclick", () => startEditing(td, student.seat_id, field, isNumeric));
+      }
+      
+      return td;
+    };
+
+    // 建立各個欄位
+    tr.appendChild(createCell("seat_id", false));
+    tr.appendChild(createCell("name", false)); 
+    tr.appendChild(createCell("chinese"));
+    tr.appendChild(createCell("english"));
+    tr.appendChild(createCell("math"));
+    tr.appendChild(createCell("science"));
+    tr.appendChild(createCell("social"));
+    tr.appendChild(createCell("pe"));
+    tr.appendChild(createCell("midterm"));
+    tr.appendChild(createCell("final"));
+    tr.appendChild(createCell("daily"));
+    
+    // 總分、平均由系統計算
+    tr.appendChild(createCell("total", false, true));
+    tr.appendChild(createCell("average", false, true));
+    
+    // 評語欄位
+    tr.appendChild(createCell("comment", true, false));
+    
+    tbody.appendChild(tr);
+  });
+  
+  // 表格渲染完後，維持搜尋過濾狀態
+  filterTable();
+}
+
+/**
+ * 進入儲存格編輯狀態 (Inline Edit)
+ */
+function startEditing(td, seatId, field, isNumeric) {
+  if (td.querySelector("input")) return;
+  
+  const originalValue = td.textContent === "-" ? "" : td.textContent;
+  td.innerHTML = "";
+  
+  const input = document.createElement("input");
+  input.value = originalValue;
+  
+  if (isNumeric) {
+    input.type = "number";
+    input.min = "0";
+    input.max = "100";
+    input.className = "edit-input";
+  } else {
+    input.type = "text";
+    input.className = "edit-input-comment";
+  }
+  
+  td.appendChild(input);
+  input.focus();
+  input.select();
+  
+  // 儲存編輯結果
+  const saveEdit = () => {
+    let newValue = input.value.trim();
+    
+    if (isNumeric) {
+      if (newValue === "") {
+        // 允許清空分數
+        newValue = "";
+      } else {
+        let num = parseInt(newValue, 10);
+        if (isNaN(num) || num < 0 || num > 100) {
+          showToast("輸入錯誤", "學科成績必須介於 0 至 100 之間！", "error");
+          td.textContent = originalValue;
+          if (originalValue === "") td.classList.add("score-empty");
+          else applyCellColor(td, originalValue);
+          return;
+        }
+        newValue = num;
+      }
+    }
+    
+    // 找到記憶體中對應的學生資料
+    const student = studentGrades.find(s => s.seat_id === seatId);
+    if (student) {
+      student[field] = newValue;
+    }
+    
+    // 重新計算與更新所有 UI
+    refreshUI();
+    loadActiveStudentToForm(); // 同步更新上方的控制台面版
+    showToast("分數已暫存", `座號 ${seatId} 的 ${getFieldCNName(field)} 已修改。別忘了儲存至雲端！`, "info");
+  };
+  
+  // 監聽結束編輯事件
+  input.addEventListener("blur", saveEdit);
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      input.blur();
+    } else if (e.key === "Escape") {
+      input.removeEventListener("blur", saveEdit);
+      td.textContent = originalValue;
+      if (originalValue === "") td.classList.add("score-empty");
+      else applyCellColor(td, originalValue);
+    }
+  });
+}
+
+function applyCellColor(td, val) {
+  const numVal = Number(val);
+  td.className = "editable";
+  if (val === "" || val === null || val === undefined) {
+    td.classList.add("score-empty");
+  } else if (numVal < 60) {
+    td.classList.add("score-fail");
+  } else if (numVal >= 90) {
+    td.classList.add("score-excellent");
+  } else {
+    td.classList.add("score-pass");
+  }
+}
+
+function getFieldCNName(field) {
+  const map = {
+    chinese: "國文", english: "英文", math: "數學", science: "自然",
+    social: "社會", pe: "體育", midterm: "期中考", final: "期末考",
+    daily: "平時成績", comment: "評語"
+  };
+  return map[field] || field;
+}
+
+/**
+ * 排序邏輯
+ */
+function handleSort(field) {
+  if (currentSortField === field) {
+    currentSortOrder = currentSortOrder === "asc" ? "desc" : "asc";
+  } else {
+    currentSortField = field;
+    currentSortOrder = "asc";
+  }
+  
+  // 更新表頭圖示
+  const headers = document.querySelectorAll(".grades-table th");
+  headers.forEach(h => {
+    const icon = h.querySelector("i");
+    if (icon) {
+      if (h.getAttribute("data-sort") === field) {
+        icon.className = currentSortOrder === "asc" ? "fa-solid fa-sort-up" : "fa-solid fa-sort-down";
+        h.style.color = "var(--color-primary)";
+      } else {
+        icon.className = "fa-solid fa-sort";
+        h.style.color = "";
+      }
+    }
+  });
+  
+  refreshUI();
+}
+
+function sortGrades() {
+  studentGrades.sort((a, b) => {
+    let valA = a[currentSortField];
+    let valB = b[currentSortField];
+    
+    // 如果是空白值，排在最後面
+    const isAEmpty = valA === "" || valA === null || valA === undefined;
+    const isBEmpty = valB === "" || valB === null || valB === undefined;
+    
+    if (isAEmpty && !isBEmpty) return 1;
+    if (!isAEmpty && isBEmpty) return -1;
+    if (isAEmpty && isBEmpty) return 0;
+    
+    if (typeof valA === "number" && typeof valB === "number") {
+      return currentSortOrder === "asc" ? valA - valB : valB - valA;
+    }
+    
+    valA = String(valA);
+    valB = String(valB);
+    return currentSortOrder === "asc" ? valA.localeCompare(valB) : valB.localeCompare(valA);
+  });
+}
+
+/**
+ * 搜尋與過濾
+ */
+function filterTable() {
+  const searchVal = document.getElementById("search-input").value.trim().toLowerCase();
+  const rows = document.querySelectorAll("#table-body tr");
+  
+  rows.forEach(row => {
+    const seatId = row.querySelector("td[data-field='seat_id']").textContent;
+    const name = row.querySelector("td:nth-child(2)").textContent.toLowerCase();
+    
+    if (seatId.includes(searchVal) || name.includes(searchVal)) {
+      row.style.display = "";
+    } else {
+      row.style.display = "none";
+    }
+  });
+}
+
+/**
+ * ==========================================
+ * 成績登錄控制台 (Quick Entry Console) 邏輯
+ * ==========================================
+ */
+
+/**
+ * 下拉選單變更事件
+ */
+function handleStudentSelectChange() {
+  loadActiveStudentToForm();
+  
+  // 同步高亮表格行
+  const seatId = Number(document.getElementById("student-select").value);
+  document.querySelectorAll("#table-body tr").forEach(tr => {
+    tr.style.backgroundColor = "";
+    if (Number(tr.getAttribute("data-seat")) === seatId) {
+      tr.style.backgroundColor = "rgba(0, 204, 255, 0.08)";
+      tr.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+  });
+}
+
+/**
+ * 將目前下拉選單選取的學生成績載入至輸入表單中
+ */
+function loadActiveStudentToForm() {
+  const seatId = Number(document.getElementById("student-select").value);
+  const student = studentGrades.find(s => s.seat_id === seatId);
+  
+  if (!student) return;
+  
+  const subjects = ["chinese", "english", "math", "science", "social", "pe", "midterm", "final", "daily"];
+  
+  subjects.forEach(sub => {
+    document.getElementById(`input-${sub}`).value = student[sub];
+  });
+  
+  document.getElementById("input-comment").value = student.comment || "";
+}
+
+/**
+ * 清空當前選取學生的輸入表單 (清空為未登錄狀態)
+ */
+function clearQuickEntryForm() {
+  const subjects = ["chinese", "english", "math", "science", "social", "pe", "midterm", "final", "daily"];
+  subjects.forEach(sub => {
+    document.getElementById(`input-${sub}`).value = "";
+  });
+  document.getElementById("input-comment").value = "";
+}
+
+/**
+ * 處理登錄表單的送出確認
+ */
+function handleQuickEntrySubmit(e) {
+  e.preventDefault();
+  
+  const seatId = Number(document.getElementById("student-select").value);
+  const student = studentGrades.find(s => s.seat_id === seatId);
+  
+  if (!student) return;
+  
+  const subjects = ["chinese", "english", "math", "science", "social", "pe", "midterm", "final", "daily"];
+  const updatedGrades = {};
+  
+  // 1. 驗證並收集輸入資料
+  for (let i = 0; i < subjects.length; i++) {
+    const sub = subjects[i];
+    const val = document.getElementById(`input-${sub}`).value.trim();
+    
+    if (val === "") {
+      updatedGrades[sub] = "";
+    } else {
+      const num = parseInt(val, 10);
+      if (isNaN(num) || num < 0 || num > 100) {
+        showToast("登錄失敗", `${getFieldCNName(sub)}成績必須是 0-100 之間的整數！`, "error");
+        document.getElementById(`input-${sub}`).focus();
+        return;
+      }
+      updatedGrades[sub] = num;
+    }
+  }
+  
+  // 評語
+  const comment = document.getElementById("input-comment").value.trim();
+  
+  // 2. 寫入記憶體結構
+  subjects.forEach(sub => {
+    student[sub] = updatedGrades[sub];
+  });
+  student.comment = comment;
+  
+  // 3. 重新整理 UI 與圖表
+  refreshUI();
+  showToast("登錄成功", `座號 ${seatId} (${student.name}) 的成績已成功暫存！`, "success");
+  
+  // 4. 自動跳轉至下一位學生，提升錄入速度 (UX 加值)
+  const select = document.getElementById("student-select");
+  if (seatId < 25) {
+    select.value = seatId + 1;
+    handleStudentSelectChange();
+    
+    // 聚焦在第一個學科輸入框以便連續輸入
+    document.getElementById("input-chinese").focus();
+    document.getElementById("input-chinese").select();
+  }
+}
+
+/**
+ * 儲存資料至 Google Sheet (POST API)
+ */
+async function saveDataToServer() {
+  showLoading("正在將成績存入 Google Sheets 資料庫...");
+  
+  try {
+    if (!GAS_API_URL || GAS_API_URL.includes("YOUR_GAS_API_URL_HERE")) {
+      throw new Error("尚未設定 Google Apps Script Web App 連結。");
+    }
+
+    const payload = {
+      action: "updateGrades",
+      grades: studentGrades
+    };
+    
+    const response = await fetch(GAS_API_URL, {
+      method: "POST",
+      body: JSON.stringify(payload)
+    });
+    
+    const result = await response.json();
+    if (result.status === "success") {
+      showToast("儲存成功", "所有學生成績已同步儲存至 Google 試算表！", "success");
+      
+      const statusBadge = document.getElementById("api-status");
+      statusBadge.className = "api-status-badge online";
+      statusBadge.querySelector(".status-text").textContent = "雲端同步中";
+      
+      if (result.spreadsheetUrl) {
+        const sheetLink = document.getElementById("sheet-link");
+        sheetLink.href = result.spreadsheetUrl;
+        sheetLink.style.display = "inline-flex";
+      }
+    } else {
+      throw new Error(result.message || "更新失敗");
+    }
+  } catch (error) {
+    console.error("寫入雲端失敗：", error);
+    showToast("儲存失敗", "無法連結雲端，成績已暫存於瀏覽器中，請稍後再試。", "error");
+  } finally {
+    hideLoading();
+  }
+}
+
+/**
+ * Chart.js 圖表更新邏輯
+ */
+function updateCharts() {
+  const subjects = ["chinese", "english", "math", "science", "social", "pe", "midterm", "final", "daily"];
+  const subjectLabels = ["國文", "英文", "數學", "自然", "社會", "體育", "期中考", "期末考", "平時成績"];
+  
+  // 計算各科平均分（排除該科為空白的學生，如果不為空白才加總）
+  const subjectAverages = subjects.map(sub => {
+    let sum = 0;
+    let count = 0;
+    studentGrades.forEach(st => {
+      if (st[sub] !== "" && st[sub] !== null && st[sub] !== undefined) {
+        sum += Number(st[sub]);
+        count++;
+      }
+    });
+    return count > 0 ? Math.round((sum / count) * 10) / 10 : 0;
+  });
+  
+  // 計算平均成績級距人數 (只計算平均不為空的人)
+  const distCounts = [0, 0, 0, 0, 0]; 
+  let hasGradedData = false;
+  
+  studentGrades.forEach(st => {
+    if (st.average !== "" && st.average !== null && st.average !== undefined) {
+      hasGradedData = true;
+      const avg = st.average;
+      if (avg >= 90) distCounts[0]++;
+      else if (avg >= 80) distCounts[1]++;
+      else if (avg >= 70) distCounts[2]++;
+      else if (avg >= 60) distCounts[3]++;
+      else distCounts[4]++;
+    }
+  });
+
+  // --- 圖表 1: 各科平均條狀圖 ---
+  if (subjectAvgChart) {
+    subjectAvgChart.data.datasets[0].data = subjectAverages;
+    subjectAvgChart.update();
+  } else {
+    const ctx = document.getElementById("subjectAvgChart").getContext("2d");
+    subjectAvgChart = new Chart(ctx, {
+      type: "bar",
+      data: {
+        labels: subjectLabels,
+        datasets: [{
+          label: "班級學科平均分數",
+          data: subjectAverages,
+          backgroundColor: "rgba(0, 204, 255, 0.4)",
+          borderColor: "rgba(0, 204, 255, 1)",
+          borderWidth: 1.5,
+          borderRadius: 6,
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          title: {
+            display: true,
+            text: "各科班級平均分分佈 (排除空白科目)",
+            color: "#f3f4f6",
+            font: { size: 14, family: "'Outfit', 'Noto Sans TC'" }
+          }
+        },
+        scales: {
+          y: {
+            min: 0,
+            max: 100,
+            grid: { color: "rgba(255, 255, 255, 0.05)" },
+            ticks: { color: "#9ca3af" }
+          },
+          x: {
+            grid: { display: false },
+            ticks: { color: "#9ca3af" }
+          }
+        }
+      }
+    });
+  }
+
+  // --- 圖表 2: 平均成績區間人數橫條圖 ---
+  if (scoreDistChart) {
+    scoreDistChart.data.datasets[0].data = distCounts;
+    scoreDistChart.update();
+  } else {
+    const ctx = document.getElementById("scoreDistChart").getContext("2d");
+    scoreDistChart = new Chart(ctx, {
+      type: "bar",
+      data: {
+        labels: ["優秀 (90+分)", "優良 (80-89分)", "中等 (70-79分)", "及格 (60-69分)", "不及格 (<60分)"],
+        datasets: [{
+          label: "人數 (人)",
+          data: distCounts,
+          backgroundColor: [
+            "rgba(255, 204, 0, 0.5)",   
+            "rgba(51, 204, 255, 0.5)",  
+            "rgba(168, 85, 247, 0.5)",  
+            "rgba(34, 197, 94, 0.5)",   
+            "rgba(239, 68, 68, 0.5)"    
+          ],
+          borderColor: [
+            "rgba(255, 204, 0, 1)",
+            "rgba(51, 204, 255, 1)",
+            "rgba(168, 85, 247, 1)",
+            "rgba(34, 197, 94, 1)",
+            "rgba(239, 68, 68, 1)"
+          ],
+          borderWidth: 1.5,
+          borderRadius: 6
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        indexAxis: "y",
+        plugins: {
+          legend: { display: false },
+          title: {
+            display: true,
+            text: "全班總平均成績人數分佈",
+            color: "#f3f4f6",
+            font: { size: 14, family: "'Outfit', 'Noto Sans TC'" }
+          }
+        },
+        scales: {
+          x: {
+            ticks: { stepSize: 1, color: "#9ca3af" },
+            grid: { color: "rgba(255, 255, 255, 0.05)" }
+          },
+          y: {
+            grid: { display: false },
+            ticks: { color: "#9ca3af" }
+          }
+        }
+      }
+    });
+  }
+}
+
+/**
+ * 輔助 UI: 顯示/隱藏 Loading
+ */
+function showLoading(text) {
+  const loader = document.getElementById("loading-overlay");
+  const loaderText = document.getElementById("loading-text");
+  if (loaderText) loaderText.textContent = text;
+  if (loader) loader.classList.add("show");
+}
+
+function hideLoading() {
+  const loader = document.getElementById("loading-overlay");
+  if (loader) loader.classList.remove("show");
+}
+
+/**
+ * 輔助 UI: 輕量 Toast 訊息通知
+ */
+function showToast(title, message, type = "info") {
+  const container = document.getElementById("toast-container");
+  if (!container) return;
+  
+  const toast = document.createElement("div");
+  toast.className = `toast ${type}`;
+  
+  let iconClass = "fa-circle-info";
+  if (type === "success") iconClass = "fa-circle-check";
+  if (type === "error") iconClass = "fa-circle-exclamation";
+  if (type === "warning") iconClass = "fa-triangle-exclamation";
+  
+  toast.innerHTML = `
+    <i class="fa-solid ${iconClass}"></i>
+    <div>
+      <strong style="display:block;font-size:0.9rem;">${title}</strong>
+      <span style="font-size:0.8rem;opacity:0.85;">${message}</span>
+    </div>
+  `;
+  
+  container.appendChild(toast);
+  
+  setTimeout(() => toast.classList.add("show"), 10);
+  
+  setTimeout(() => {
+    toast.classList.remove("show");
+    setTimeout(() => toast.remove(), 350);
+  }, 3500);
+}
