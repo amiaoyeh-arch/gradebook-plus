@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>雲端班級成績登錄系統 (GradeBook Plus)</title>
+  <title>阿妙老師的資訊課雲端成績登錄系統 (GradeBook Plus)</title>
   <!-- 引入 Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -27,7 +27,7 @@
         <div class="logo-icon"><i class="fa-solid fa-graduation-cap"></i></div>
         <div>
           <h1>GradeBook <span>Plus</span></h1>
-          <p class="subtitle"><i class="fa-solid fa-school"></i> 雲端班級成績登錄系統 — 三年二班 (25人)</p>
+          <p class="subtitle"><i class="fa-solid fa-school"></i> 阿妙老師的資訊課雲端成績登錄系統</p>
         </div>
       </div>
       
@@ -47,6 +47,21 @@
         </button>
       </div>
     </header>
+
+    <!-- 班級切換器 -->
+    <section class="class-switcher-container glass-panel animate-fade-in" style="animation-delay: 0.05s;">
+      <div class="class-tabs">
+        <button class="class-tab active" data-class="grades">
+          <i class="fa-solid fa-users"></i> 三年二班 (grades)
+        </button>
+        <button class="class-tab" data-class="grades2">
+          <i class="fa-solid fa-users"></i> 三年三班 (grades2)
+        </button>
+      </div>
+      <div class="class-info-badge">
+        <i class="fa-solid fa-circle-info"></i> 當前正在編輯：<span id="current-class-label">三年二班</span> (25人)
+      </div>
+    </section>
 
     <!-- 儀表板數據卡 -->
     <section class="dashboard-metrics">

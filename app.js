@@ -2,20 +2,29 @@
  * GradeBook Plus - 前端核心邏輯
  * 整合資料庫同步、Inline-Edit、成績登錄控制台、即時統計與 Chart.js 圖表分析
  * 欄位架構：10次平時考 (quiz_1 ~ quiz_10) 與學期平均 (average)
+ * 支援雙班級切換：三年二班 (grades) 與三年三班 (grades2)
  */
 
 // 後端 Google Apps Script Web App 部署網址
 const GAS_API_URL = "https://script.google.com/macros/s/AKfycbzQ0UTr3W59FuffqdWIc2DcJgUsVDm8i4NT2UQW8ZazUj0Q3IMXMIh_FJNaEu5ENfS2/exec";
 
-// 25 位學生的固定基本名單
+// 三年二班 (grades) 固定基本名單
 const STUDENT_NAMES = [
   "林宇軒", "陳雅婷", "張家豪", "李怡君", "王志明", "黃雅雯", "劉傑森", "蔡美玲", "吳俊宏", "賴淑芬",
   "謝冠宇", "周欣怡", "徐子晴", "曾聖凱", "詹凱婷", "梁品睿", "潘廷軒", "郭佳穎", "曹承翰", "許家瑜",
   "楊舒雅", "鄧宇翔", "彭若瑄", "蕭哲宇", "葉庭妤"
 ];
 
+// 三年三班 (grades2) 固定基本名單
+const STUDENT_NAMES_2 = [
+  "王柏翰", "李冠廷", "林庭妤", "陳宇軒", "黃芷萱", "張家傑", "蔡睿軒", "許欣妤", "吳承恩", "賴宥廷",
+  "謝羽婷", "洪子晴", "郭廷睿", "邱聖凱", "曾佳穎", "廖品睿", "柯亭軒", "潘怡君", "簡聖芬", "彭承翰",
+  "游家瑜", "詹舒雅", "盧宇翔", "蕭若瑄", "葉哲宇"
+];
+
 // 全域變數
 let studentGrades = [];
+let currentClass = "grades"; // 當前選擇的班級，預設為 "grades" (三年二班)
 let currentSortField = "seat_id";
 let currentSortOrder = "asc"; // "asc" | "desc"
 let subjectAvgChart = null;
@@ -39,7 +48,7 @@ document.addEventListener("DOMContentLoaded", () => {
 async function initApp() {
   showLoading("正在偵測伺服器連線狀態...");
   
-  // 1. 初始化學生成績登錄控制台下拉選單 (25位)
+  // 1. 初始化學生成績登錄控制台下拉選單
   initStudentSelect();
   
   // 2. 綁定控制按鈕
@@ -52,7 +61,10 @@ async function initApp() {
   document.getElementById("clear-entry-btn").addEventListener("click", clearQuickEntryForm);
   document.getElementById("student-select").addEventListener("change", handleStudentSelectChange);
   
-  // 4. 綁定表頭排序
+  // 4. 綁定班級切換 Tab 事件
+  initClassSwitcher();
+  
+  // 5. 綁定表頭排序
   const headers = document.querySelectorAll(".grades-table th.sortable");
   headers.forEach(header => {
     header.addEventListener("click", () => {
@@ -67,16 +79,44 @@ async function initApp() {
 }
 
 /**
- * 初始化登錄控制台的學生下拉選單
+ * 綁定頂部班級切換 Tab 鍵事件
+ */
+function initClassSwitcher() {
+  const tabs = document.querySelectorAll(".class-tab");
+  tabs.forEach(tab => {
+    tab.addEventListener("click", () => {
+      if (tab.classList.contains("active")) return;
+      
+      // 切換 active 類別
+      tabs.forEach(t => t.classList.remove("active"));
+      tab.classList.add("active");
+      
+      // 變更當前工作表 class 路由
+      currentClass = tab.getAttribute("data-class");
+      
+      // 更新標籤文字
+      const labelMap = { grades: "三年二班", grades2: "三年三班" };
+      document.getElementById("current-class-label").textContent = labelMap[currentClass];
+      
+      // 重新從伺服器拉取該班級的資料
+      loadDataFromServer(true);
+    });
+  });
+}
+
+/**
+ * 初始化登錄控制台的學生下拉選單 (根據當前班級動態決定學生姓名)
  */
 function initStudentSelect() {
   const select = document.getElementById("student-select");
   select.innerHTML = "";
   
+  const names = (currentClass === "grades2") ? STUDENT_NAMES_2 : STUDENT_NAMES;
+  
   for (let i = 1; i <= 25; i++) {
     const opt = document.createElement("option");
     opt.value = i;
-    opt.textContent = `座號 ${String(i).padStart(2, '0')} - ${STUDENT_NAMES[i - 1]}`;
+    opt.textContent = `座號 ${String(i).padStart(2, '0')} - ${names[i - 1]}`;
     select.appendChild(opt);
   }
 }
@@ -86,7 +126,7 @@ function initStudentSelect() {
  */
 async function loadDataFromServer(isManualReload = false) {
   if (isManualReload) {
-    showLoading("正在從 Google Sheets 重新同步...");
+    showLoading(`正在同步雲端資料...`);
   }
   
   const statusBadge = document.getElementById("api-status");
@@ -100,7 +140,8 @@ async function loadDataFromServer(isManualReload = false) {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 8000);
 
-    const response = await fetch(`${GAS_API_URL}?action=getGrades`, {
+    // 帶入 class 參數來指定對接的工作表
+    const response = await fetch(`${GAS_API_URL}?action=getGrades&class=${currentClass}`, {
       method: "GET",
       signal: controller.signal
     });
@@ -124,7 +165,8 @@ async function loadDataFromServer(isManualReload = false) {
       }
       
       if (isManualReload) {
-        showToast("同步成功", "已從雲端試算表取得最新成績數據。", "success");
+        const labelMap = { grades: "三年二班", grades2: "三年三班" };
+        showToast("同步成功", `已完成【${labelMap[currentClass]}】雲端資料同步。`, "success");
       }
     } else {
       throw new Error("伺服器資料異常或未初始化");
@@ -136,9 +178,7 @@ async function loadDataFromServer(isManualReload = false) {
     statusBadge.querySelector(".status-text").textContent = "本地演示模式";
     sheetLink.style.display = "none";
     
-    if (studentGrades.length !== 25) {
-      generateLocalBlankGrades();
-    }
+    generateLocalBlankGrades();
     
     if (isManualReload) {
       showToast("本地資料重置", "後端連線失敗，已重置本地空白成績。", "warning");
@@ -148,24 +188,27 @@ async function loadDataFromServer(isManualReload = false) {
       hideLoading();
     }
     
+    // 依據新班級名單重新生成選單與表格，重算統計
+    initStudentSelect();
     refreshUI();
     loadActiveStudentToForm();
   }
 }
 
 /**
- * 產生 25 位學生的本地空白成績
+ * 產生當前班級的本地空白成績
  */
 function generateLocalBlankGrades() {
   studentGrades = [];
+  const names = (currentClass === "grades2") ? STUDENT_NAMES_2 : STUDENT_NAMES;
+  
   for (let i = 1; i <= 25; i++) {
     const student = {
       seat_id: i,
-      name: STUDENT_NAMES[i - 1],
+      name: names[i - 1],
       average: "",
       comment: ""
     };
-    // 預設 10 次平時考均為空白
     QUIZ_FIELDS.forEach(f => student[f] = "");
     studentGrades.push(student);
   }
@@ -180,7 +223,7 @@ function refreshUI() {
   
   // 2. 計算班級統計
   let sumAverage = 0;
-  let gradedCount = 0; // 已輸入成績的人數
+  let gradedCount = 0;
   let passCount = 0;
   let excelCount = 0;
   let failCount = 0;
@@ -233,7 +276,6 @@ function refreshUI() {
 function recalculateGrades() {
   studentGrades.forEach(student => {
     const isBlank = (v) => v === "" || v === null || v === undefined;
-    
     const scoredQuizzes = QUIZ_FIELDS.filter(f => !isBlank(student[f]));
     
     if (scoredQuizzes.length > 0) {
@@ -256,7 +298,6 @@ function renderTable() {
     const tr = document.createElement("tr");
     tr.setAttribute("data-seat", student.seat_id);
     
-    // 點擊此行，將該名學生載入成績登錄控制面板中
     tr.addEventListener("click", (e) => {
       if (e.target.tagName === "INPUT") return;
       
@@ -268,7 +309,6 @@ function renderTable() {
       tr.style.backgroundColor = "rgba(0, 204, 255, 0.08)";
     });
     
-    // 定義欄位與對應樣式邏輯的 Helper
     const createCell = (field, isEditable = true, isNumeric = true) => {
       const td = document.createElement("td");
       const value = student[field];
@@ -316,19 +356,14 @@ function renderTable() {
       return td;
     };
 
-    // 建立座號與姓名
     tr.appendChild(createCell("seat_id", false));
     tr.appendChild(createCell("name", false)); 
     
-    // 建立 10 次平時考欄位
     QUIZ_FIELDS.forEach(f => {
       tr.appendChild(createCell(f));
     });
     
-    // 建立學期平均 (系統計算)
     tr.appendChild(createCell("average", false, true));
-    
-    // 建立綜合評語
     tr.appendChild(createCell("comment", true, false));
     
     tbody.appendChild(tr);
@@ -388,7 +423,7 @@ function startEditing(td, seatId, field, isNumeric) {
     }
     
     refreshUI();
-    loadActiveStudentToForm(); // 同步控制台面版
+    loadActiveStudentToForm(); 
     showToast("分數已暫存", `座號 ${seatId} 的 ${getFieldCNName(field)} 已修改。別忘了儲存至雲端！`, "info");
   };
   
@@ -590,7 +625,7 @@ function handleQuickEntrySubmit(e) {
   refreshUI();
   showToast("登錄成功", `座號 ${seatId} (${student.name}) 的成績已成功暫存！`, "success");
   
-  // 4. 自動跳轉至下一位學生，提升錄入速度
+  // 4. 自動跳轉至下一位學生
   const select = document.getElementById("student-select");
   if (seatId < 25) {
     select.value = seatId + 1;
@@ -605,7 +640,8 @@ function handleQuickEntrySubmit(e) {
  * 儲存資料至 Google Sheet (POST API)
  */
 async function saveDataToServer() {
-  showLoading("正在將成績存入 Google Sheets 資料庫...");
+  const labelMap = { grades: "三年二班", grades2: "三年三班" };
+  showLoading(`正在同步【${labelMap[currentClass]}】資料至 Google Sheets...`);
   
   try {
     if (!GAS_API_URL || GAS_API_URL.includes("YOUR_GAS_API_URL_HERE")) {
@@ -614,6 +650,7 @@ async function saveDataToServer() {
 
     const payload = {
       action: "updateGrades",
+      class: currentClass, // 傳入當前班級參數以動態決定寫入的工作表
       grades: studentGrades
     };
     
@@ -624,7 +661,7 @@ async function saveDataToServer() {
     
     const result = await response.json();
     if (result.status === "success") {
-      showToast("儲存成功", "所有學生成績已同步儲存至 Google 試算表！", "success");
+      showToast("儲存成功", `【${labelMap[currentClass]}】的所有學生成績已同步儲存！`, "success");
       
       const statusBadge = document.getElementById("api-status");
       statusBadge.className = "api-status-badge online";
@@ -650,7 +687,6 @@ async function saveDataToServer() {
  * Chart.js 圖表更新邏輯
  */
 function updateCharts() {
-  // 計算各次平時考班級平均分 (排除該科為空白的學生)
   const subjectAverages = QUIZ_FIELDS.map(f => {
     let sum = 0;
     let count = 0;
@@ -663,7 +699,6 @@ function updateCharts() {
     return count > 0 ? Math.round((sum / count) * 10) / 10 : 0;
   });
   
-  // 計算學期平均成績級距人數 (只計算平均不為空的人)
   const distCounts = [0, 0, 0, 0, 0]; 
   
   studentGrades.forEach(st => {
@@ -793,9 +828,6 @@ function showLoading(text) {
   if (loader) loader.classList.add("show");
 }
 
-/**
- * 輔助 UI: 隱藏 Loading
- */
 function hideLoading() {
   const loader = document.getElementById("loading-overlay");
   if (loader) loader.classList.remove("show");

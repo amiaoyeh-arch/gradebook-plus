@@ -910,3 +910,70 @@ body {
     transform: translateY(0);
   }
 }
+
+/* ==========================================================================
+   班級切換器 (Class Switcher) 樣式
+   ========================================================================== */
+.class-switcher-container {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.8rem;
+  flex-wrap: wrap;
+  gap: 1.2rem;
+}
+
+@media (max-width: 576px) {
+  .class-switcher-container {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
+.class-tabs {
+  display: flex;
+  gap: 0.8rem;
+}
+
+.class-tab {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-glass);
+  color: var(--color-text-muted);
+  font-family: var(--font-family-base);
+  font-size: 0.95rem;
+  font-weight: 600;
+  padding: 0.6rem 1.2rem;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.class-tab:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--color-text-main);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.class-tab.active {
+  background: linear-gradient(135deg, rgba(0, 180, 216, 0.2), rgba(139, 92, 246, 0.2)) !important;
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+  box-shadow: var(--glow-primary);
+}
+
+.class-info-badge {
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+  background: rgba(255, 255, 255, 0.03);
+  padding: 0.4rem 1rem;
+  border-radius: 30px;
+  border: 1px solid var(--border-glass);
+}
+
+#current-class-label {
+  color: var(--color-primary);
+  font-weight: 700;
+}
